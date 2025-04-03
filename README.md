@@ -20,4 +20,6 @@ go mod tidy
 go build main.go
 ./main
 ```
+- ![Screenshot 2025-04-03 232941](https://github.com/user-attachments/assets/5777ea76-2450-4534-b167-97ff809d1b42)
+
 
