@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/host"
@@ -28,23 +29,48 @@ func main() {
 	app := tview.NewApplication()
 
 	//new view for showing data
-	var cpuView *tview.TextView
-	var memView *tview.TextView
-	var loadView *tview.TextView
-	var uptimeView *tview.TextView
-	cpuView = tview.NewTextView().SetDynamicColors(true).SetRegions(true).SetChangedFunc(func() { app.Draw() }).SetLabel("CPU Usage: ")
-	memView = tview.NewTextView().SetDynamicColors(true).SetRegions(true).SetChangedFunc(func() { app.Draw() }).SetLabel("Memory Usage: ")
-	loadView = tview.NewTextView().SetDynamicColors(true).SetRegions(true).SetChangedFunc(func() { app.Draw() }).SetLabel("Processing Load: ")
-	uptimeView = tview.NewTextView().SetDynamicColors(true).SetRegions(true).SetChangedFunc(func() { app.Draw() }).SetLabel("Uptime: ")
+	var cpuView, memView, loadView, uptimeView *tview.TextView
+	cpuView = tview.NewTextView()
+	memView = tview.NewTextView()
+	loadView = tview.NewTextView()
+	uptimeView = tview.NewTextView()
+
+	cpuView.SetDynamicColors(true).
+		SetRegions(true).
+		SetChangedFunc(func() { app.Draw() }).
+		SetBorder(true).
+		SetBorderColor(tcell.ColorBlue).
+		SetTitle(" CPU Usage: ")
+	memView.SetDynamicColors(true).
+		SetRegions(true).
+		SetChangedFunc(func() { app.Draw() }).
+		SetBorder(true).
+		SetBorderColor(tcell.ColorYellow).
+		SetTitle(" Memory Usage: ")
+	loadView.SetDynamicColors(true).
+		SetRegions(true).
+		SetChangedFunc(func() { app.Draw() }).
+		SetBorder(true).
+		SetBorderColor(tcell.ColorIsRGB).
+		SetTitle(" Processing Load: ")
+	uptimeView.SetDynamicColors(true).
+		SetRegions(true).
+		SetChangedFunc(func() { app.Draw() }).
+		SetBorder(true).
+		SetBorderColor(tcell.ColorWhiteSmoke).
+		SetTitle(" Uptime: ")
 
 	//create flex layout
-	flex := tview.NewFlex().
-		SetDirection(tview.FlexRow).
+	topView := tview.NewFlex().SetDirection(tview.FlexColumn).
 		AddItem(cpuView, 0, 1, false).
-		AddItem(memView, 0, 1, false).
-		SetDirection(tview.FlexRow).
+		AddItem(memView, 0, 1, false)
+	bottomView := tview.NewFlex().SetDirection(tview.FlexColumn).
 		AddItem(loadView, 0, 1, false).
 		AddItem(uptimeView, 0, 1, false)
+	flex := tview.NewFlex().
+		SetDirection(tview.FlexRow).
+		AddItem(topView, 0, 1, false).
+		AddItem(bottomView, 0, 1, false)
 
 	//function to get data into texview
 	updateInfo := func() {
