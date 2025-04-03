@@ -1,0 +1,115 @@
+package main
+
+import (
+	"fmt"
+	"time"
+
+	"github.com/rivo/tview"
+	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v3/host"
+	"github.com/shirou/gopsutil/v3/load"
+	"github.com/shirou/gopsutil/v3/mem"
+)
+
+func formatBytes(bytes uint64) string {
+	const unit = 1024
+	if bytes < unit {
+		return fmt.Sprintf("%d B", bytes)
+	}
+	div, exp := int64(unit), 0
+	for n := bytes / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %ciB", float64(bytes)/float64(div), "KMGTPE"[exp])
+}
+
+func main() {
+	app := tview.NewApplication()
+
+	//new view for showing data
+	var cpuView *tview.TextView
+	var memView *tview.TextView
+	var loadView *tview.TextView
+	var uptimeView *tview.TextView
+	cpuView = tview.NewTextView().SetDynamicColors(true).SetRegions(true).SetChangedFunc(func() { app.Draw() }).SetLabel("CPU Usage: ")
+	memView = tview.NewTextView().SetDynamicColors(true).SetRegions(true).SetChangedFunc(func() { app.Draw() }).SetLabel("Memory Usage: ")
+	loadView = tview.NewTextView().SetDynamicColors(true).SetRegions(true).SetChangedFunc(func() { app.Draw() }).SetLabel("Processing Load: ")
+	uptimeView = tview.NewTextView().SetDynamicColors(true).SetRegions(true).SetChangedFunc(func() { app.Draw() }).SetLabel("Uptime: ")
+
+	//create flex layout
+	flex := tview.NewFlex().
+		SetDirection(tview.FlexRow).
+		AddItem(cpuView, 0, 1, false).
+		AddItem(memView, 0, 1, false).
+		SetDirection(tview.FlexRow).
+		AddItem(loadView, 0, 1, false).
+		AddItem(uptimeView, 0, 1, false)
+
+	//function to get data into texview
+	updateInfo := func() {
+		//get stats using gopsutil
+		cpuPercents, errCpu := cpu.Percent(0, false)
+		cpuStr := "Fetching..."
+		if errCpu == nil && len(cpuPercents) > 0 {
+			color := "green"
+			if cpuPercents[0] > 80.0 {
+				color = "red"
+			} else if cpuPercents[0] > 50.0 {
+				color = "yellow"
+			}
+			cpuStr = fmt.Sprintf("[%s]Overall CPU Usage: %.2f%%[-]", color, cpuPercents[0])
+		} else if errCpu != nil {
+			cpuStr = fmt.Sprintf("[red]Error: %v[-]", errCpu)
+		} else {
+			cpuStr = "[orange]CPU Error: No data[-]"
+		}
+		//memory stats
+		vmStat, errMem := mem.VirtualMemory()
+		memStr := "Fetching..."
+		if errMem == nil {
+			memStr = fmt.Sprintf("[blue]Total: %s | Used: %s (%.2f%%)[-]",
+				formatBytes(vmStat.Total),
+				formatBytes(vmStat.Used),
+				vmStat.UsedPercent)
+		} else {
+			memStr = fmt.Sprintf("[red]Error: %v[-]", errMem)
+		}
+		//load status
+		loadStat, errLoad := load.Avg()
+		loadStr := "Fethcing..."
+		if errLoad == nil {
+			loadStr = fmt.Sprintf("[green]1 min: %.2f | 5 min: %.2f | 15 min: %.2f[-]", loadStat.Load1, loadStat.Load5, loadStat.Load15)
+		} else {
+			loadStr = fmt.Sprintf("[grey]Not Available or Error: %v[-]", errLoad)
+		}
+		//uptime
+		uptimeSec, errUptime := host.Uptime()
+		uptimeStr := "Fetching..."
+		if errUptime == nil {
+			uptimeDuration := time.Duration(uptimeSec) * time.Second
+			// Format duration for better readability (e.g., "1h2m3s")
+			uptimeStr = fmt.Sprintf("[blue]%s[-]", uptimeDuration.String())
+		} else {
+			uptimeStr = fmt.Sprintf("[red]Error: %v[-]", errUptime)
+		}
+		//update Ui
+		app.QueueUpdateDraw(func() {
+			cpuView.SetText(cpuStr)
+			memView.SetText(memStr)
+			loadView.SetText(loadStr)
+			uptimeView.SetText(uptimeStr)
+		})
+	}
+	go func() {
+		ticker := time.NewTicker(2 * time.Second)
+		defer ticker.Stop()
+		updateInfo()
+		for range ticker.C {
+			updateInfo()
+		}
+	}()
+	if err := app.SetRoot(flex, true).EnableMouse(true).Run(); err != nil {
+		panic(err)
+	}
+}
